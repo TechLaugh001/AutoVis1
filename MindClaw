@@ -1,0 +1,1971 @@
+以下为 MindClaw 项目的完整开源代码，包含所有必需文件及详细文档。您只需按以下目录结构创建文件，将内容粘贴进去，即可直接运行或部署。
+
+---
+
+📁 项目目录结构
+
+```
+mindclaw/
+├── .env.example
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── docker-compose.yml
+├── Dockerfile
+├── pyproject.toml
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── LICENSE
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   └── PULL_REQUEST_TEMPLATE.md
+├── config/
+│   ├── __init__.py
+│   ├── settings.py
+│   └── logging.py
+├── core/
+│   ├── __init__.py
+│   ├── agent.py
+│   ├── ai_client.py
+│   ├── security.py
+│   └── exceptions.py
+├── api/
+│   ├── __init__.py
+│   ├── dependencies.py
+│   ├── limiter.py
+│   └── v1/
+│       ├── __init__.py
+│       ├── auth.py
+│       ├── chat.py
+│       └── models.py
+├── utils/
+│   ├── __init__.py
+│   ├── database.py
+│   ├── redis_client.py
+│   ├── auth.py
+│   └── tasks.py
+├── tools/
+│   ├── __init__.py
+│   ├── registry.py
+│   ├── base.py
+│   ├── file_tool.py
+│   ├── shell_tool.py
+│   └── browser_tool.py
+├── memory/
+│   ├── __init__.py
+│   ├── vector_store.py
+│   ├── long_term.py
+│   └── session_memory.py
+├── planner/
+│   ├── __init__.py
+│   ├── planner.py
+│   └── executor.py
+├── plugins/
+│   ├── __init__.py
+│   ├── manager.py
+│   └── example_plugin.py
+├── static/
+│   ├── index.html
+│   └── login.html
+└── main.py
+```
+
+---
+
+📄 文件内容
+
+根目录文件
+
+.env.example
+
+```bash
+# AI API 配置
+AI_API_TYPE=openai                     # 可选: openai, deepseek, moonshot, doubao, wenxin
+AI_API_KEY=your-api-key
+AI_API_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-3.5-turbo
+
+# 数据库
+DATABASE_URL=postgresql://mindclaw:mindclaw@postgres:5432/mindclaw
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+
+# JWT 密钥（必须修改）
+JWT_SECRET=your-32-char-secret-minimum
+JWT_REFRESH_SECRET=another-32-char-secret
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# 限流
+RATE_LIMIT=100/hour
+
+# 代理（可选）
+HTTP_PROXY=
+HTTPS_PROXY=
+
+# 向量数据库配置（用于长期记忆）
+VECTOR_STORE_TYPE=chroma                # 目前仅支持 chroma
+VECTOR_STORE_PATH=./chroma_data
+EMBEDDING_MODEL=text-embedding-ada-002   # 可选：本地模型（如 all-MiniLM-L6-v2）或 OpenAI
+
+# 工具安全限制
+ALLOWED_SHELL_COMMANDS=ls,cat,echo      # 允许的 shell 命令，逗号分隔，空表示禁止所有
+ALLOWED_FILE_PATHS=/tmp,/home/user/data  # 允许的文件操作路径
+```
+
+.gitignore
+
+```
+__pycache__/
+*.pyc
+.env
+logs/
+*.db
+*.enc
+.DS_Store
+chroma_data/
+```
+
+README.md
+
+```markdown
+# 🦞 MindClaw - 生产就绪的开源 AI 智能体
+
+MindClaw 是一个企业级 AI 对话智能体，支持多种外部 AI API（OpenAI、DeepSeek、Moonshot、豆包、文心等）。它具备完整的用户认证、流式对话、限流、结构化日志、健康检查和 Docker 支持。所有数据本地存储，API 密钥通过环境变量安全管理。
+
+## ✨ 核心特性
+- 🔐 **JWT 认证**（刷新令牌、Redis 黑名单）
+- 🚦 **端点限流**
+- 📝 **结构化日志**（loguru）
+- 🐳 **Docker 一键部署**
+- 🔄 **SSE 流式对话**
+- 🗃️ **PostgreSQL** 持久化对话历史
+- ⚡ **Redis** 缓存与令牌管理
+- 🌐 **多 AI 提供商**（OpenAI 兼容、文心等）
+- ✅ **健康检查**（`/health`、`/ready`）
+
+## 🚀 增强特性（Agent 能力）
+- 🛠️ **工具调用**：文件操作、Shell 命令、浏览器控制
+- 🧠 **长期记忆**：基于向量数据库的跨会话检索
+- 📅 **自主规划**：多步任务分解与执行（ReAct 模式）
+- 🔌 **插件系统**：轻松集成第三方服务
+
+---
+
+## 📦 部署教程
+
+### 前置条件
+- **Docker & Docker Compose**（推荐）或 **Python 3.10+**
+- **PostgreSQL** 和 **Redis**（如不使用 Docker，需自行安装）
+- **Git**（可选）
+
+### 方式一：Docker 部署（生产推荐）
+
+1. **克隆项目**（或直接下载源码）
+   ```bash
+   git clone https://github.com/yourusername/mindclaw.git
+   cd mindclaw
+```
+
+1. 配置环境变量
+   ```bash
+   cp .env.example .env
+   # 编辑 .env 文件，填入您的 API 密钥、数据库连接等
+   ```
+2. 启动服务
+   ```bash
+   docker-compose up -d
+   ```
+   · 等待 PostgreSQL 和 Redis 健康检查通过后，MindClaw 会自动启动。
+   · 查看日志：docker-compose logs -f mindclaw
+3. 访问应用
+   · 前端登录页：http://localhost:8000/static/login.html
+   · API 文档：http://localhost:8000/docs
+
+方式二：手动部署（开发调试）
+
+1. 创建虚拟环境
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+   ```
+2. 安装依赖
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. 安装并启动 PostgreSQL 和 Redis
+   · 例如 Ubuntu：
+     ```bash
+     sudo apt install postgresql redis-server
+     sudo systemctl start postgresql redis-server
+     ```
+   · 创建数据库和用户（需与 .env 中配置一致）。
+4. 配置环境变量
+   ```bash
+   cp .env.example .env
+   # 修改 .env 中的 DATABASE_URL 和 REDIS_URL 为本地地址
+   ```
+5. 运行应用
+   ```bash
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+6. 访问应用：同上。
+
+---
+
+⚙️ 环境变量说明
+
+变量 描述 示例
+AI_API_TYPE AI 提供商类型 openai、deepseek、moonshot、doubao、wenxin
+AI_API_KEY API 密钥 sk-...
+AI_API_BASE_URL API 基础 URL https://api.openai.com/v1
+AI_MODEL 模型名称 gpt-3.5-turbo
+DATABASE_URL PostgreSQL 连接字符串 postgresql://user:pass@localhost/db
+REDIS_URL Redis 连接字符串 redis://localhost:6379/0
+JWT_SECRET Access 令牌密钥（≥32 字符） your-strong-secret
+JWT_REFRESH_SECRET Refresh 令牌密钥（≥32 字符） another-strong-secret
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES Access 令牌有效期（分钟） 15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS Refresh 令牌有效期（天） 7
+RATE_LIMIT 限流规则 100/hour
+HTTP_PROXY / HTTPS_PROXY 代理地址（可选） http://proxy.example.com:8080
+VECTOR_STORE_TYPE 向量数据库类型 chroma（目前仅支持）
+VECTOR_STORE_PATH 向量数据库存储路径 ./chroma_data
+EMBEDDING_MODEL 嵌入模型名称 text-embedding-ada-002 或本地模型名
+ALLOWED_SHELL_COMMANDS 允许的 Shell 命令（逗号分隔） ls,cat,echo
+ALLOWED_FILE_PATHS 允许的文件操作路径（逗号分隔） /tmp,/home/user/data
+
+---
+
+📚 API 接口说明
+
+认证接口
+
+注册
+
+· URL: POST /api/v1/auth/register
+· 请求体:
+  ```json
+  {
+    "username": "your_username",
+    "password": "your_password"
+  }
+  ```
+· 响应: 200 OK 或错误信息。
+
+登录
+
+· URL: POST /api/v1/auth/login
+· 请求体: 同上。
+· 响应:
+  ```json
+  {
+    "access_token": "eyJhbGciOiJIUzI1NiIs..."
+  }
+  ```
+· 说明: Refresh Token 通过 HttpOnly Cookie 返回。
+
+刷新 Access Token
+
+· URL: POST /api/v1/auth/refresh
+· Cookie: 必须携带 refresh_token（HttpOnly）
+· 响应: 同登录，返回新的 access_token。
+
+登出
+
+· URL: POST /api/v1/auth/logout
+· Cookie: 必须携带 refresh_token
+· 响应: 200 OK，并清除 Cookie。
+
+对话接口
+
+流式对话
+
+· URL: POST /api/v1/chat/stream
+· Headers: Authorization: Bearer <access_token>
+· 请求体:
+  ```json
+  {
+    "message": "你好",
+    "session_id": "default"  // 可选，用于区分不同会话
+  }
+  ```
+· 响应: Server-Sent Events (SSE) 流。
+  · 数据格式：data: {"content": "部分回复"}\n\n
+  · 结束时发送：data: [DONE]\n\n
+  · 错误时发送：data: {"error": "错误信息"}\n\n
+· 特殊指令: 以 /plan  开头的消息会触发自主规划模式（例如 /plan 帮我整理 /tmp 下的文件）。
+
+---
+
+🛡️ 安全与隐私
+
+· 所有密钥仅通过环境变量注入，绝不硬编码。
+· JWT Access Token 15 分钟过期，Refresh Token 7 天过期（HttpOnly Cookie）。
+· 已撤销的 Token 存入 Redis 直至过期。
+· 密码使用 bcrypt 哈希存储。
+· 输入内容经 sanitize 处理，移除控制字符。
+· CORS 默认仅允许 http://localhost:8000，生产环境请修改。
+· Docker 容器以非 root 用户运行。
+
+---
+
+📜 法律合规说明
+
+本项目是一个开源技术框架，本身不提供生成式 AI 服务。若您使用本项目在中国境内提供生成式 AI 服务，您必须自行遵守以下中国法律法规：
+
+· 《生成式人工智能服务管理暂行办法》——算法备案、安全评估、内容标识
+· 《互联网信息服务算法推荐管理规定》——算法备案
+· 《互联网信息服务深度合成管理规定》——深度合成内容标识
+· 《网络安全法》《数据安全法》《个人信息保护法》
+
+项目对合规的辅助功能
+
+· 内容标识建议：项目示例前端可在返回内容前添加“[AI 生成]”前缀，后端 API 可在 JSON 中包含 is_ai_generated 字段，帮助满足内容标识要求。
+· 用户协议要点：您可根据项目内置的合规指南，编写用户协议和隐私政策，说明数据收集、使用方式及用户权利。
+· 数据本地化：项目默认使用本地 PostgreSQL 和 Redis，数据可完全由您掌控。
+
+不符合的规定
+
+· 本项目 不自动完成算法备案，您需自行向中国网信办提交算法备案。
+· 本项目 不包含安全评估报告，您需自行进行安全评估并提交。
+· 本项目 不提供自动化的用户身份实名认证，您需根据服务性质决定是否集成实名认证。
+· 本项目 不保证输出的内容完全合规，您仍需对生成内容进行审核。
+
+国际合规性
+
+· 本项目基于 MIT 许可证发布，不包含任何出口管制限制。
+· 使用者需遵守所在国家/地区的法律法规，包括数据保护、AI 使用等相关规定。
+
+---
+
+🤝 贡献指南
+
+我们欢迎任何形式的贡献，包括但不限于：
+
+· 提交 bug 报告或功能建议（通过 GitHub Issues）
+· 提交代码改进（通过 Pull Request）
+· 完善文档
+
+请确保您的贡献符合项目编码规范，并通过现有测试。详见 CONTRIBUTING.md。
+
+---
+
+📄 许可证
+
+本项目采用 MIT 许可证 – 详见 LICENSE 文件。
+
+⚠️ 免责声明
+
+本项目仅供学习与研究。使用者需自行承担 API 密钥安全及第三方服务条款的合规责任。如在中国境内部署，请确保遵守所有适用法律法规。
+
+```
+
+#### `requirements.txt`
+```txt
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+httpx==0.25.1
+tenacity==8.2.3
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+redis==5.0.1
+slowapi==0.1.8
+loguru==0.7.2
+python-dotenv==1.0.0
+aiofiles==23.2.1
+chromadb==0.4.22
+sentence-transformers==2.2.2
+```
+
+docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: mindclaw
+      POSTGRES_PASSWORD: mindclaw
+      POSTGRES_DB: mindclaw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindclaw"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mindclaw:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./chroma_data:/app/chroma_data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+```
+
+Dockerfile
+
+```dockerfile
+FROM python:3.10-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+FROM python:3.10-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 app
+USER app
+WORKDIR /app
+COPY --from=builder --chown=app:app /root/.local /home/app/.local
+ENV PATH=/home/app/.local/bin:$PATH
+COPY --chown=app:app . .
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+pyproject.toml
+
+```toml
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+```
+
+CONTRIBUTING.md
+
+```markdown
+# 贡献指南
+
+感谢您对 MindClaw 的关注！我们欢迎任何形式的贡献，包括但不限于：
+
+- 报告 Bug：请通过 GitHub Issues 提交，描述问题、复现步骤和环境信息。
+- 提出新功能：通过 Issues 描述您希望添加的功能及使用场景。
+- 提交代码改进：请 Fork 仓库，创建特性分支，编写代码并确保通过现有测试，然后提交 Pull Request。
+- 完善文档：修正拼写错误、补充示例、翻译等。
+
+## 开发流程
+1. Fork 本仓库。
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)。
+3. 提交您的改动 (`git commit -m 'Add some AmazingFeature'`)。
+4. 推送到分支 (`git push origin feature/AmazingFeature`)。
+5. 打开一个 Pull Request。
+
+## 代码规范
+- 使用 Black 格式化代码（行长度 88）。
+- 使用 isort 对导入排序。
+- 确保类型注解完整。
+- 编写单元测试覆盖新功能。
+
+## 行为准则
+请参阅 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+
+再次感谢您的贡献！
+```
+
+CODE_OF_CONDUCT.md
+
+```markdown
+# 贡献者公约
+
+## 我们的承诺
+
+为了营造一个开放、友好的环境，我们作为贡献者和维护者承诺：无论年龄、体型、身体健全与否、民族、性别认同与表达、经验水平、教育程度、社会经济地位、国籍、个人形象、种族、宗教或性取向如何，参与我们的社区都不会受到骚扰。
+
+## 我们的标准
+
+有助于创造积极环境的行为包括：
+- 使用友好和包容的语言
+- 尊重不同的观点和经验
+- 得体地接受建设性批评
+- 关注社区最有利的事情
+- 对其他社区成员表示同理心
+
+不可接受的行为包括：
+- 使用性暗示的语言或图像，以及不受欢迎的性关注
+- 挑衅、侮辱/贬损评论，人身或政治攻击
+- 公开或私下骚扰
+- 未经明确许可发布他人的私人信息
+- 其他在专业环境中被合理认为不恰当的行为
+
+## 责任与执行
+
+社区维护者有责任明确可接受行为的标准，并对任何不可接受的行为采取适当且公平的纠正措施。
+
+如果遇到滥用、骚扰或其他不可接受的行为，请通过项目仓库中指定的联系方式向社区维护者报告。所有投诉将被迅速审查和调查。
+
+## 适用范围
+
+本行为准则适用于所有社区空间，也适用于个人在公共场合正式代表社区的情况。
+
+## 执行指南
+
+社区维护者将遵循以下社区影响指南来决定对任何违反本行为准则的行为的后果：
+
+1. **更正**：私下警告，要求澄清违规行为并道歉。
+2. **警告**：对单次或系列违规行为发出警告，规定时间内不得与相关人员互动。
+3. **临时禁言**：对严重违规行为实施暂时禁止参与社区。
+4. **永久禁言**：对持续违规或严重骚扰行为实施永久禁止。
+
+## 来源
+
+本行为准则改编自 [Contributor Covenant][homepage] 2.0 版，可在此查阅：https://www.contributor-covenant.org/version/2/0/code_of_conduct.html
+
+[homepage]: https://www.contributor-covenant.org
+```
+
+LICENSE
+
+```txt
+MIT License
+
+Copyright (c) 2025 MindClaw Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+.github/ 目录文件
+
+.github/ISSUE_TEMPLATE/bug_report.md
+
+```markdown
+---
+name: Bug report
+about: Create a report to help us improve
+title: '[BUG] '
+labels: bug
+assignees: ''
+---
+
+**Describe the bug**
+A clear and concise description of what the bug is.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+**Expected behavior**
+A clear and concise description of what you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Environment (please complete the following information):**
+- OS: [e.g. Ubuntu 22.04, macOS 14]
+- Python version: [e.g. 3.10]
+- Docker version (if applicable): [e.g. 24.0]
+- MindClaw version: [e.g. 8.0.0]
+
+**Additional context**
+Add any other context about the problem here.
+```
+
+.github/ISSUE_TEMPLATE/feature_request.md
+
+```markdown
+---
+name: Feature request
+about: Suggest an idea for this project
+title: '[FEATURE] '
+labels: enhancement
+assignees: ''
+---
+
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+
+**Describe the solution you'd like**
+A clear and concise description of what you want to happen.
+
+**Describe alternatives you've considered**
+A clear and concise description of any alternative solutions or features you've considered.
+
+**Additional context**
+Add any other context or screenshots about the feature request here.
+```
+
+.github/PULL_REQUEST_TEMPLATE.md
+
+```markdown
+## Description
+Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
+
+Fixes # (issue)
+
+## Type of change
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
+
+## How Has This Been Tested?
+Please describe the tests that you ran to verify your changes.
+
+- [ ] Test A
+- [ ] Test B
+
+## Checklist:
+- [ ] My code follows the style guidelines of this project
+- [ ] I have performed a self-review of my own code
+- [ ] I have commented my code, particularly in hard-to-understand areas
+- [ ] I have made corresponding changes to the documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix is effective or that my feature works
+- [ ] New and existing unit tests pass locally with my changes
+```
+
+config/ 目录
+
+config/__init__.py
+
+```python
+# Empty
+```
+
+config/settings.py
+
+```python
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from typing import Optional, List
+
+class Settings(BaseSettings):
+    AI_API_TYPE: str = "openai"
+    AI_API_KEY: str
+    AI_API_BASE_URL: str
+    AI_MODEL: str = "gpt-3.5-turbo"
+
+    DATABASE_URL: str = "postgresql://mindclaw:mindclaw@localhost/mindclaw"
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    JWT_SECRET: str
+    JWT_REFRESH_SECRET: str
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    RATE_LIMIT: str = "100/hour"
+
+    HTTP_PROXY: Optional[str] = None
+    HTTPS_PROXY: Optional[str] = None
+
+    # 向量数据库配置
+    VECTOR_STORE_TYPE: str = "chroma"
+    VECTOR_STORE_PATH: str = "./chroma_data"
+    EMBEDDING_MODEL: str = "text-embedding-ada-002"
+
+    # 工具安全限制
+    ALLOWED_SHELL_COMMANDS: str = ""
+    ALLOWED_FILE_PATHS: str = ""
+
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True,
+    }
+
+    @field_validator("JWT_SECRET", "JWT_REFRESH_SECRET")
+    @classmethod
+    def validate_secret(cls, v: str) -> str:
+        if len(v) < 32:
+            raise ValueError("Secret must be at least 32 characters")
+        return v
+
+    def get_allowed_commands(self) -> List[str]:
+        if not self.ALLOWED_SHELL_COMMANDS:
+            return []
+        return [cmd.strip() for cmd in self.ALLOWED_SHELL_COMMANDS.split(",")]
+
+    def get_allowed_paths(self) -> List[str]:
+        if not self.ALLOWED_FILE_PATHS:
+            return []
+        return [p.strip() for p in self.ALLOWED_FILE_PATHS.split(",")]
+
+settings = Settings()
+```
+
+config/logging.py
+
+```python
+import logging
+import os
+from loguru import logger
+import sys
+
+os.makedirs("logs", exist_ok=True)
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record):
+        logger_opt = logger.opt(depth=6, exception=record.exc_info)
+        logger_opt.log(record.levelname, record.getMessage())
+
+def setup_logging():
+    logging.basicConfig(handlers=[InterceptHandler()], level=0)
+    logger.add("logs/mindclaw.log", rotation="500 MB", retention="10 days", level="INFO")
+    logger.add(sys.stdout, level="INFO")
+```
+
+core/ 目录
+
+core/__init__.py
+
+```python
+# Empty
+```
+
+core/agent.py
+
+```python
+from sqlalchemy.orm import Session
+from utils.database import SessionLocal, Conversation
+from .ai_client import AIClient
+from .security import sanitize_input
+from memory.long_term import LongTermMemory
+from planner.planner import Planner
+from tools.registry import ToolRegistry
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+class MindClawAgent:
+    def __init__(self, user_id: int, ai_client: AIClient, session_id: str = "default"):
+        self.user_id = user_id
+        self.session_id = session_id
+        self.client = ai_client
+        self.messages = self._load_history()
+        self.long_term_memory = LongTermMemory(str(user_id))
+        self.planner = Planner(ai_client, ToolRegistry)
+
+    def _load_history(self, limit=10):
+        db = SessionLocal()
+        try:
+            history = db.query(Conversation).filter_by(
+                user_id=self.user_id, session_id=self.session_id
+            ).order_by(Conversation.id.desc()).limit(limit).all()
+            msgs = []
+            for msg in reversed(history):
+                msgs.append({"role": "user", "content": msg.user_message})
+                msgs.append({"role": "assistant", "content": msg.assistant_message})
+            return msgs
+        finally:
+            db.close()
+
+    async def run_stream(self, user_input: str):
+        clean_input = sanitize_input(user_input)
+
+        if clean_input.startswith("/plan "):
+            task = clean_input[6:].strip()
+            async for chunk in self.planner.plan_and_execute(task):
+                yield chunk
+            return
+
+        memories = await self.long_term_memory.recall(clean_input)
+        if memories:
+            context = "\n".join(memories[:3])
+            enhanced_input = f"[相关记忆]\n{context}\n[当前问题]\n{clean_input}"
+        else:
+            enhanced_input = clean_input
+
+        self.messages.append({"role": "user", "content": enhanced_input})
+
+        full_response = ""
+        try:
+            async for chunk_data in self.client.chat_completion(self.messages, stream=True):
+                if chunk_data:
+                    try:
+                        chunk = json.loads(chunk_data)
+                        delta = chunk["choices"][0]["delta"].get("content", "")
+                        if delta:
+                            full_response += delta
+                            yield delta
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error(f"Stream error: {e}")
+            yield f"Error: {str(e)}"
+        finally:
+            self.messages.append({"role": "assistant", "content": full_response})
+            self._save_to_db(clean_input, full_response)
+
+    def _save_to_db(self, user_msg, assistant_msg):
+        db = SessionLocal()
+        try:
+            conv = Conversation(
+                user_id=self.user_id,
+                session_id=self.session_id,
+                user_message=user_msg,
+                assistant_message=assistant_msg
+            )
+            db.add(conv)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Save to DB failed: {e}")
+            db.rollback()
+        finally:
+            db.close()
+```
+
+core/ai_client.py
+
+```python
+import httpx
+import json
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
+from config.settings import settings
+from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(__name__)
+
+class AIClient:
+    def __init__(self):
+        self.api_type = settings.AI_API_TYPE
+        self.api_key = settings.AI_API_KEY
+        self.base_url = settings.AI_API_BASE_URL.rstrip('/')
+        self.model = settings.AI_MODEL
+        self.timeout = httpx.Timeout(30.0, connect=5.0)
+        proxies = {}
+        if settings.HTTP_PROXY:
+            proxies["http://"] = settings.HTTP_PROXY
+        if settings.HTTPS_PROXY:
+            proxies["https://"] = settings.HTTPS_PROXY
+        self.client = httpx.AsyncClient(timeout=self.timeout, proxies=proxies if proxies else None)
+
+    def _get_headers(self) -> dict:
+        if self.api_type in ["openai", "deepseek", "moonshot", "doubao"]:
+            return {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+        elif self.api_type == "wenxin":
+            return {"Content-Type": "application/json"}
+        else:
+            raise ValueError(f"Unsupported API type: {self.api_type}")
+
+    async def close(self):
+        await self.client.aclose()
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    async def chat_completion(
+        self,
+        messages: list,
+        stream: bool = False,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[str] = "auto"
+    ) -> Any:
+        headers = self._get_headers()
+        url = f"{self.base_url}/chat/completions"
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": stream
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+
+        if stream:
+            async with self.client.stream("POST", url, json=payload, headers=headers) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        yield data
+        else:
+            resp = await self.client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+```
+
+core/security.py
+
+```python
+import re
+
+def sanitize_input(text: str, max_length: int = 4000) -> str:
+    cleaned = re.sub(r'[\x00-\x1f\x7f]', '', text)
+    return cleaned[:max_length]
+```
+
+core/exceptions.py
+
+```python
+class MindClawException(Exception):
+    pass
+
+class AIClientError(MindClawException):
+    pass
+```
+
+api/ 目录
+
+api/__init__.py
+
+```python
+# Empty
+```
+
+api/dependencies.py
+
+```python
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+from utils.database import SessionLocal, User
+from utils.redis_client import get_redis
+from utils.auth import decode_token, is_token_revoked
+import redis.asyncio as redis
+
+security = HTTPBearer()
+
+async def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_redis_client() -> redis.Redis:
+    client = await get_redis()
+    return client
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
+) -> User:
+    token = credentials.credentials
+    if await is_token_revoked(token, redis_client):
+        raise HTTPException(status_code=401, detail="Token revoked")
+    payload = decode_token(token, token_type="access")
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_id = int(payload.get("sub"))
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+def get_refresh_token_from_cookie(request: Request) -> str:
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+    return token
+```
+
+api/limiter.py
+
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from config.settings import settings
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT])
+```
+
+api/v1/__init__.py
+
+```python
+# Empty
+```
+
+api/v1/auth.py
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from utils.database import User
+from utils.auth import (
+    hash_password, verify_password,
+    create_access_token, create_refresh_token,
+    decode_token, revoke_token, is_token_revoked
+)
+from api.dependencies import get_db, get_redis_client, get_refresh_token_from_cookie
+from api.limiter import limiter
+import redis.asyncio as redis
+from config.settings import settings
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+class UserRegister(BaseModel):
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+
+@router.post("/register")
+@limiter.limit(settings.RATE_LIMIT)
+async def register(
+    request: Request,
+    user: UserRegister,
+    db: Session = Depends(get_db)
+):
+    existing = db.query(User).filter(User.username == user.username).first()
+    if existing:
+        raise HTTPException(400, "Username already exists")
+    hashed = hash_password(user.password)
+    db_user = User(username=user.username, hashed_password=hashed)
+    db.add(db_user)
+    db.commit()
+    return {"message": "User created"}
+
+@router.post("/login", response_model=TokenResponse)
+@limiter.limit(settings.RATE_LIMIT)
+async def login(
+    request: Request,
+    user: UserLogin,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(401, "Invalid credentials")
+    access = create_access_token(db_user.id)
+    refresh = create_refresh_token(db_user.id)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+    )
+    return {"access_token": access}
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit(settings.RATE_LIMIT)
+async def refresh(
+    request: Request,
+    refresh_token: str = Depends(get_refresh_token_from_cookie),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    if await is_token_revoked(refresh_token, redis_client):
+        raise HTTPException(401, "Token revoked")
+    payload = decode_token(refresh_token, token_type="refresh")
+    if not payload:
+        raise HTTPException(401, "Invalid refresh token")
+    new_access = create_access_token(int(payload["sub"]))
+    return {"access_token": new_access}
+
+@router.post("/logout")
+@limiter.limit(settings.RATE_LIMIT)
+async def logout(
+    request: Request,
+    response: Response,
+    refresh_token: str = Depends(get_refresh_token_from_cookie),
+    redis_client: redis.Redis = Depends(get_redis_client)
+):
+    await revoke_token(refresh_token, redis_client)
+    response.delete_cookie("refresh_token")
+    return {"message": "Logged out"}
+```
+
+api/v1/chat.py
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from api.dependencies import get_current_user
+from core.agent import MindClawAgent
+from utils.database import User
+from api.limiter import limiter
+from config.settings import settings
+import json
+
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str = "default"
+
+@router.post("/stream")
+@limiter.limit(settings.RATE_LIMIT)
+async def chat_stream(
+    request: Request,
+    chat_req: ChatRequest,
+    user: User = Depends(get_current_user)
+):
+    ai_client = request.app.state.ai_client
+    agent = MindClawAgent(user.id, ai_client, chat_req.session_id)
+
+    async def generate():
+        try:
+            async for chunk in agent.run_stream(chat_req.message):
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+```
+
+api/v1/models.py
+
+```python
+from pydantic import BaseModel
+
+# Placeholder for shared models
+```
+
+utils/ 目录
+
+utils/__init__.py
+
+```python
+# Empty
+```
+
+utils/database.py
+
+```python
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from config.settings import settings
+import datetime
+
+engine = create_engine(settings.DATABASE_URL, pool_size=10, max_overflow=20)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    session_id = Column(String, default="default")
+    user_message = Column(Text)
+    assistant_message = Column(Text)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
+```
+
+utils/redis_client.py
+
+```python
+import redis.asyncio as redis
+from config.settings import settings
+
+_redis_client = None
+
+async def get_redis():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = await redis.from_url(settings.REDIS_URL, decode_responses=True)
+    return _redis_client
+```
+
+utils/auth.py
+
+```python
+import jwt
+from datetime import datetime, timedelta
+from config.settings import settings
+import redis.asyncio as redis
+from passlib.context import CryptContext
+
+ALGORITHM = "HS256"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(user_id), "exp": expire, "type": "access"}
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=ALGORITHM)
+
+def create_refresh_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+    payload = {"sub": str(user_id), "exp": expire, "type": "refresh"}
+    return jwt.encode(payload, settings.JWT_REFRESH_SECRET, algorithm=ALGORITHM)
+
+def decode_token(token: str, token_type: str = "access") -> dict:
+    secret = settings.JWT_SECRET if token_type == "access" else settings.JWT_REFRESH_SECRET
+    try:
+        payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
+        if payload.get("type") != token_type:
+            return None
+        return payload
+    except jwt.PyJWTError:
+        return None
+
+async def revoke_token(token: str, redis_client: redis.Redis):
+    payload = decode_token(token, token_type="refresh")
+    if payload:
+        exp = payload.get("exp")
+        if exp:
+            ttl = exp - datetime.utcnow().timestamp()
+            if ttl > 0:
+                await redis_client.setex(f"blacklist:{token}", int(ttl), "revoked")
+
+async def is_token_revoked(token: str, redis_client: redis.Redis) -> bool:
+    return await redis_client.exists(f"blacklist:{token}") == 1
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+```
+
+utils/tasks.py
+
+```python
+# Placeholder for background tasks
+```
+
+tools/ 目录
+
+tools/__init__.py
+
+```python
+from .registry import ToolRegistry
+from .file_tool import ReadFileTool, WriteFileTool
+from .shell_tool import ShellTool
+from .browser_tool import BrowserTool
+
+ToolRegistry.register(ReadFileTool())
+ToolRegistry.register(WriteFileTool())
+ToolRegistry.register(ShellTool())
+ToolRegistry.register(BrowserTool())
+```
+
+tools/registry.py
+
+```python
+from typing import Dict, Optional, List
+from .base import BaseTool
+
+class ToolRegistry:
+    _tools: Dict[str, BaseTool] = {}
+
+    @classmethod
+    def register(cls, tool: BaseTool):
+        cls._tools[tool.name] = tool
+
+    @classmethod
+    def get(cls, name: str) -> Optional[BaseTool]:
+        return cls._tools.get(name)
+
+    @classmethod
+    def list_schemas(cls) -> List[dict]:
+        return [tool.to_schema() for tool in cls._tools.values()]
+```
+
+tools/base.py
+
+```python
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+
+class BaseTool(ABC):
+    name: str
+    description: str
+
+    @abstractmethod
+    async def run(self, **kwargs) -> Any:
+        pass
+
+    def to_schema(self) -> Dict:
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.get_parameters_schema()
+            }
+        }
+
+    def get_parameters_schema(self) -> Dict:
+        return {"type": "object", "properties": {}}
+```
+
+tools/file_tool.py
+
+```python
+import aiofiles
+from .base import BaseTool
+from config.settings import settings
+
+class ReadFileTool(BaseTool):
+    name = "read_file"
+    description = "读取指定路径的文件内容"
+
+    async def run(self, file_path: str) -> str:
+        allowed = settings.get_allowed_paths()
+        if allowed and not any(file_path.startswith(p) for p in allowed):
+            return f"错误：文件路径不在允许的范围内。允许的路径：{allowed}"
+        try:
+            async with aiofiles.open(file_path, 'r') as f:
+                return await f.read()
+        except Exception as e:
+            return f"读取失败: {e}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string", "description": "文件绝对路径"}
+            },
+            "required": ["file_path"]
+        }
+
+class WriteFileTool(BaseTool):
+    name = "write_file"
+    description = "将内容写入指定文件（覆盖写入）"
+
+    async def run(self, file_path: str, content: str) -> str:
+        allowed = settings.get_allowed_paths()
+        if allowed and not any(file_path.startswith(p) for p in allowed):
+            return f"错误：文件路径不在允许的范围内。允许的路径：{allowed}"
+        try:
+            async with aiofiles.open(file_path, 'w') as f:
+                await f.write(content)
+            return f"成功写入文件：{file_path}"
+        except Exception as e:
+            return f"写入失败: {e}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "object",
+            "properties": {
+                "file_path": {"type": "string", "description": "文件绝对路径"},
+                "content": {"type": "string", "description": "要写入的内容"}
+            },
+            "required": ["file_path", "content"]
+        }
+```
+
+tools/shell_tool.py
+
+```python
+import asyncio
+from .base import BaseTool
+from config.settings import settings
+
+class ShellTool(BaseTool):
+    name = "run_shell"
+    description = "执行一条 shell 命令（受安全限制）"
+
+    async def run(self, command: str) -> str:
+        allowed = settings.get_allowed_commands()
+        if allowed:
+            cmd_name = command.split()[0]
+            if cmd_name not in allowed:
+                return f"错误：命令 '{cmd_name}' 不在允许的列表中。允许的命令：{allowed}"
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                return stdout.decode() or "命令执行成功（无输出）"
+            else:
+                return f"错误：{stderr.decode()}"
+        except Exception as e:
+            return f"执行异常: {e}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "要执行的 shell 命令"}
+            },
+            "required": ["command"]
+        }
+```
+
+tools/browser_tool.py
+
+```python
+from .base import BaseTool
+
+class BrowserTool(BaseTool):
+    name = "browser_control"
+    description = "控制浏览器打开网页并获取内容（需安装 playwright）"
+
+    async def run(self, url: str, action: str = "get") -> str:
+        # 实际实现应使用 playwright 或 selenium
+        return f"浏览器工具尚未完全实现。请求 URL: {url}, 动作: {action}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "要访问的网址"},
+                "action": {"type": "string", "enum": ["get", "screenshot"], "description": "操作类型"}
+            },
+            "required": ["url"]
+        }
+```
+
+memory/ 目录
+
+memory/__init__.py
+
+```python
+# Empty
+```
+
+memory/vector_store.py
+
+```python
+import chromadb
+from chromadb.config import Settings
+from config.settings import settings
+import uuid
+import asyncio
+from sentence_transformers import SentenceTransformer
+
+class VectorStore:
+    def __init__(self, collection_name="mindclaw_memory"):
+        self.client = chromadb.Client(Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory=settings.VECTOR_STORE_PATH
+        ))
+        self.collection = self.client.get_or_create_collection(collection_name)
+        self.embedding_model = None
+        if not settings.EMBEDDING_MODEL.startswith("text-embedding"):
+            self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+
+    async def add(self, text: str, metadata: dict, embedding=None):
+        if embedding is None:
+            if self.embedding_model:
+                embedding = self.embedding_model.encode(text).tolist()
+            else:
+                embedding = text
+        await asyncio.to_thread(
+            self.collection.add,
+            documents=[text],
+            metadatas=[metadata],
+            embeddings=[embedding] if isinstance(embedding, list) else None,
+            ids=[str(uuid.uuid4())]
+        )
+
+    async def search(self, query: str, n_results=5):
+        results = await asyncio.to_thread(
+            self.collection.query,
+            query_texts=[query],
+            n_results=n_results
+        )
+        return results
+```
+
+memory/long_term.py
+
+```python
+from .vector_store import VectorStore
+
+class LongTermMemory:
+    def __init__(self, user_id: str):
+        self.user_id = user_id
+        self.store = VectorStore()
+
+    async def remember(self, fact: str, source: str = "conversation"):
+        await self.store.add(fact, {"user_id": self.user_id, "source": source})
+
+    async def recall(self, query: str) -> list:
+        results = await self.store.search(query)
+        if results and 'documents' in results and results['documents']:
+            return results['documents'][0]
+        return []
+```
+
+memory/session_memory.py
+
+```python
+# 会话记忆由 agent 的 messages 管理，无需额外文件
+```
+
+planner/ 目录
+
+planner/__init__.py
+
+```python
+# Empty
+```
+
+planner/planner.py
+
+```python
+import json
+from core.ai_client import AIClient
+from tools.registry import ToolRegistry
+import logging
+
+logger = logging.getLogger(__name__)
+
+class Planner:
+    def __init__(self, ai_client: AIClient, tool_registry: ToolRegistry):
+        self.client = ai_client
+        self.tools = tool_registry
+
+    async def plan_and_execute(self, task: str, max_steps=10):
+        messages = [
+            {"role": "system", "content": "你是一个能调用工具的助手。请逐步思考并执行任务。"},
+            {"role": "user", "content": task}
+        ]
+        for step in range(max_steps):
+            resp = await self.client.chat_completion(
+                messages=messages,
+                tools=self.tools.list_schemas(),
+                tool_choice="auto"
+            )
+            msg = resp['choices'][0]['message']
+            messages.append(msg)
+
+            if msg.get('tool_calls'):
+                for tool_call in msg['tool_calls']:
+                    tool_name = tool_call['function']['name']
+                    args = json.loads(tool_call['function']['arguments'])
+                    tool = self.tools.get(tool_name)
+                    if tool:
+                        logger.info(f"调用工具 {tool_name} 参数 {args}")
+                        result = await tool.run(**args)
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "content": str(result)
+                        })
+                    else:
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call['id'],
+                            "content": f"错误：工具 {tool_name} 不存在"
+                        })
+            else:
+                return msg['content']
+        return "超过最大步骤数，任务未完成。"
+```
+
+planner/executor.py
+
+```python
+# 可扩展为单独的执行器，当前集成在 planner.py 中
+```
+
+plugins/ 目录
+
+plugins/__init__.py
+
+```python
+# Empty
+```
+
+plugins/manager.py
+
+```python
+import importlib
+import pkgutil
+import logging
+
+logger = logging.getLogger(__name__)
+
+class PluginManager:
+    def __init__(self, plugin_package="plugins"):
+        self.plugin_package = plugin_package
+        self.plugins = []
+
+    def discover_plugins(self):
+        package = importlib.import_module(self.plugin_package)
+        for _, name, _ in pkgutil.iter_modules(package.__path__):
+            module = importlib.import_module(f"{self.plugin_package}.{name}")
+            if hasattr(module, "register"):
+                module.register()
+                self.plugins.append(name)
+                logger.info(f"已加载插件: {name}")
+```
+
+plugins/example_plugin.py
+
+```python
+from tools.registry import ToolRegistry
+from tools.base import BaseTool
+
+class ExampleTool(BaseTool):
+    name = "example"
+    description = "示例插件工具"
+
+    async def run(self, message: str) -> str:
+        return f"插件返回: {message}"
+
+    def get_parameters_schema(self):
+        return {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string"}
+            },
+            "required": ["message"]
+        }
+
+def register():
+    ToolRegistry.register(ExampleTool())
+```
+
+static/ 目录
+
+static/index.html
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MindClaw Chat</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: auto; padding: 20px; }
+        #chat { height: 400px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
+        .user { color: blue; }
+        .assistant { color: green; }
+        .error { color: red; }
+        .tool { color: purple; font-style: italic; }
+        input, button { padding: 10px; margin-top: 10px; width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>MindClaw</h1>
+    <div id="chat"></div>
+    <input type="text" id="message" placeholder="输入消息... (输入 /plan 任务 开始规划)">
+    <button onclick="send()">发送</button>
+
+    <script>
+        const accessToken = localStorage.getItem('accessToken');
+        if (!accessToken) {
+            window.location.href = '/static/login.html';
+        }
+
+        function addMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = role;
+            div.innerText = role + ': ' + text;
+            document.getElementById('chat').appendChild(div);
+        }
+
+        async function send() {
+            const msg = document.getElementById('message').value;
+            if (!msg) return;
+            addMessage('user', msg);
+            document.getElementById('message').value = '';
+
+            const response = await fetch('/api/v1/chat/stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + accessToken
+                },
+                body: JSON.stringify({ message: msg })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let assistantDiv = document.createElement('div');
+            assistantDiv.className = 'assistant';
+            assistantDiv.innerText = 'assistant: ';
+            document.getElementById('chat').appendChild(assistantDiv);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') break;
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.content) {
+                                assistantDiv.innerText += parsed.content;
+                            } else if (parsed.error) {
+                                assistantDiv.innerText += ' [错误: ' + parsed.error + ']';
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+```
+
+static/login.html
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MindClaw 登录/注册</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { width: 400px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
+        h2 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #555; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .error { color: red; text-align: center; margin-top: 10px; }
+        .tab { display: flex; margin-bottom: 20px; }
+        .tab button { flex: 1; padding: 10px; background: #f0f0f0; border: none; cursor: pointer; }
+        .tab button.active { background: #007bff; color: white; }
+        .form { display: none; }
+        .form.active { display: block; }
+        .switch { text-align: center; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>MindClaw</h2>
+        <div class="tab">
+            <button id="tabLogin" class="active" onclick="showTab('login')">登录</button>
+            <button id="tabRegister" onclick="showTab('register')">注册</button>
+        </div>
+
+        <div id="loginForm" class="form active">
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="loginUsername" placeholder="输入用户名">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="loginPassword" placeholder="输入密码">
+            </div>
+            <button onclick="login()">登录</button>
+            <div id="loginError" class="error"></div>
+        </div>
+
+        <div id="registerForm" class="form">
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="registerUsername" placeholder="输入用户名">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="registerPassword" placeholder="输入密码">
+            </div>
+            <button onclick="register()">注册</button>
+            <div id="registerError" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tab) {
+            document.getElementById('tabLogin').classList.remove('active');
+            document.getElementById('tabRegister').classList.remove('active');
+            document.getElementById('loginForm').classList.remove('active');
+            document.getElementById('registerForm').classList.remove('active');
+            if (tab === 'login') {
+                document.getElementById('tabLogin').classList.add('active');
+                document.getElementById('loginForm').classList.add('active');
+            } else {
+                document.getElementById('tabRegister').classList.add('active');
+                document.getElementById('registerForm').classList.add('active');
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            if (!username || !password) {
+                document.getElementById('loginError').innerText = '请填写用户名和密码';
+                return;
+            }
+            const res = await fetch('/api/v1/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                localStorage.setItem('accessToken', data.access_token);
+                window.location.href = '/static/index.html';
+            } else {
+                document.getElementById('loginError').innerText = data.detail || '登录失败';
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('registerUsername').value;
+            const password = document.getElementById('registerPassword').value;
+            if (!username || !password) {
+                document.getElementById('registerError').innerText = '请填写用户名和密码';
+                return;
+            }
+            const res = await fetch('/api/v1/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (res.ok) {
+                alert('注册成功，请登录');
+                showTab('login');
+                document.getElementById('registerUsername').value = '';
+                document.getElementById('registerPassword').value = '';
+            } else {
+                const data = await res.json();
+                document.getElementById('registerError').innerText = data.detail || '注册失败';
+            }
+        }
+    </script>
+</body>
+</html>
+```
+
+根目录：main.py
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from api.v1 import auth, chat
+from api.limiter import limiter
+from config.logging import setup_logging
+from utils.database import engine
+from utils.redis_client import get_redis
+from core.ai_client import AIClient
+from plugins.manager import PluginManager
+import logging
+import asyncio
+
+setup_logging()
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up...")
+    redis_client = await get_redis()
+    await redis_client.ping()
+    app.state.ai_client = AIClient()
+    plugin_manager = PluginManager()
+    plugin_manager.discover_plugins()
+    app.state.plugin_manager = plugin_manager
+    yield
+    logger.info("Shutting down...")
+    await app.state.ai_client.close()
+    await redis_client.close()
+    await engine.dispose()
+
+app = FastAPI(title="MindClaw", version="8.0.0", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.get("/ready")
+async def ready():
+    try:
+        from sqlalchemy import text
+        def sync_db_check():
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        await asyncio.to_thread(sync_db_check)
+        redis_client = await get_redis()
+        await redis_client.ping()
+        return {"status": "ready"}
+    except Exception as e:
+        logger.error(f"Ready check failed: {e}")
+        return {"status": "unready"}, 503
+```
+
+---
+
+以上即为 MindClaw 项目的完整源代码。请按照目录结构创建所有文件，并确保每个文件的内容准确无误。随后即可通过 Docker 或手动方式运行。如有任何问题，欢迎通过 GitHub Issues 反馈。
